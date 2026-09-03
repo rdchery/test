@@ -1,0 +1,4 @@
+requests>=2.31
+python-dotenv>=1.0
+smbprotocol>=1.12  # optional: only needed if writing directly over SMB (SMB_HOST set)
+pytest>=8.0
