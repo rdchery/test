@@ -4,6 +4,10 @@ Polls the Documo (mFax) API for new inbound faxes, downloads each one, and
 copies it to a folder on a network share. Already-copied faxes are tracked
 in a local state file so re-runs never duplicate a file.
 
+**Setting this up on a Windows Server, step by step (no coding involved)?
+See [`WINDOWS_SETUP.md`](WINDOWS_SETUP.md) instead of this file.** The rest
+of this README is the technical reference / Linux instructions.
+
 ## ⚠️ Verify against the Documo docs
 
 This was built without direct access to the Documo docs page you linked
