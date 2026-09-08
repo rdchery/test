@@ -11,18 +11,27 @@ of this README is the technical reference / Linux instructions.
 ## ⚠️ Verify against the Documo docs
 
 This was built without direct access to the Documo docs page you linked
-(`docs.documo.com` was blocked by this environment's network egress proxy),
-so `documo_client.py` targets Documo's standard mFax v1 REST API:
+(`docs.documo.com` was blocked by this environment's network egress proxy).
+Confirmed so far, from a real request against `api.documo.com` and from the
+Folders/Files section of the docs:
 
-- `GET /v1/fax?direction=inbound&status=new` -- list inbound faxes
-- `GET /v1/fax/{id}/download` -- download a fax file
-- `PATCH /v1/fax/{id}` -- mark a fax as read
-- Auth: API key sent in the `Authorization` header
+- Base URL is `https://api.documo.com` (no `/v1` prefix)
+- Auth: `Authorization: Basic <api_key>` -- note the literal word `Basic`,
+  not `Bearer`, and not standard HTTP Basic auth (no base64, no colon/password)
 
-Before relying on this, open the linked docs page and confirm those paths,
-the auth header, and the response field names (`id`/`faxId`, `from`,
-`receivedAt`, and the list envelope key `faxes`/`data`). Everything that
-might differ is a config value, not a code change:
+Still unconfirmed -- `documo_client.py` currently guesses these by analogy
+with the rest of Documo's REST API and they have NOT been verified against
+the Fax section of the docs yet:
+
+- `GET /fax?direction=inbound&status=new` -- list inbound faxes
+- `GET /fax/{id}/download` -- download a fax file
+- `PATCH /fax/{id}` -- mark a fax as read
+- The response field names (`id`/`faxId`, `from`, `receivedAt`, and the
+  list envelope key `faxes`/`data`)
+
+Before relying on this, open the linked docs page's **Fax** section and
+confirm those paths and field names. Everything that might differ is a
+config value, not a code change:
 
 - Endpoint paths: `DOCUMO_LIST_PATH`, `DOCUMO_DOWNLOAD_PATH`, `DOCUMO_MARK_READ_PATH`
 - Auth shape: `DOCUMO_AUTH_HEADER`, `DOCUMO_AUTH_SCHEME`

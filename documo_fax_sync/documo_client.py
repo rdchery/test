@@ -7,10 +7,10 @@ import os
 
 import requests
 
-DOCUMO_API_BASE = os.environ.get("DOCUMO_API_BASE", "https://api.documo.com/v1")
+DOCUMO_API_BASE = os.environ.get("DOCUMO_API_BASE", "https://api.documo.com")
 DOCUMO_API_KEY = os.environ.get("DOCUMO_API_KEY")
 DOCUMO_AUTH_HEADER = os.environ.get("DOCUMO_AUTH_HEADER", "Authorization")
-DOCUMO_AUTH_SCHEME = os.environ.get("DOCUMO_AUTH_SCHEME", "")  # e.g. "Bearer", or "" for a raw key
+DOCUMO_AUTH_SCHEME = os.environ.get("DOCUMO_AUTH_SCHEME", "Basic")  # Documo's docs show "Authorization: Basic API_KEY"
 
 LIST_PATH = os.environ.get("DOCUMO_LIST_PATH", "/fax")
 DOWNLOAD_PATH = os.environ.get("DOCUMO_DOWNLOAD_PATH", "/fax/{fax_id}/download")
