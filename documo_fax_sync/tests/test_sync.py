@@ -75,6 +75,49 @@ def test_sync_once_mark_as_read_false_still_saves_but_skips_marking(tmp_path):
     assert state.is_processed("1")
 
 
+def test_sync_once_reads_rows_key_and_filters_outbound(tmp_path):
+    client = MagicMock()
+    client.list_inbound_faxes.return_value = {
+        "rows": [
+            {"messageId": "1", "faxNumber": "5551234567", "createdAt": "2026-09-03T10:00:00Z",
+             "classificationLabel": "inbound"},
+            {"messageId": "2", "faxNumber": "5557654321", "createdAt": "2026-09-03T10:05:00Z",
+             "classificationLabel": "outbound"},
+        ]
+    }
+    client.download_fax.return_value = b"%PDF-1.4 fake"
+
+    writer = MagicMock()
+    writer.write.side_effect = lambda name, content: tmp_path / name
+
+    state = ProcessedFaxState(tmp_path / "processed.json")
+
+    sync_once(client, writer, state)
+
+    client.download_fax.assert_called_once_with("1")
+    assert state.is_processed("1")
+    assert not state.is_processed("2")
+
+
+def test_sync_once_saves_state_even_if_mark_read_fails(tmp_path):
+    client = MagicMock()
+    client.list_inbound_faxes.return_value = {
+        "rows": [{"messageId": "1", "faxNumber": "5551234567", "createdAt": "2026-09-03T10:00:00Z"}]
+    }
+    client.download_fax.return_value = b"%PDF-1.4 fake"
+    client.mark_fax_read.side_effect = RuntimeError("mark-read endpoint unconfirmed / broken")
+
+    writer = MagicMock()
+    writer.write.side_effect = lambda name, content: tmp_path / name
+
+    state = ProcessedFaxState(tmp_path / "processed.json")
+
+    sync_once(client, writer, state)
+
+    writer.write.assert_called_once()
+    assert state.is_processed("1")  # saved successfully -> tracked, despite mark-read failing
+
+
 def test_sync_once_continues_after_a_failed_fax(tmp_path):
     client = MagicMock()
     client.list_inbound_faxes.return_value = {

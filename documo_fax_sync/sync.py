@@ -47,10 +47,20 @@ def build_filename(fax):
     )
 
 
+def _is_inbound(fax):
+    # /v1/fax/history marks direction via "classificationLabel" (confirmed
+    # live); older assumption was "direction". Treat unknown/missing as
+    # inbound rather than silently dropping faxes, only exclude a fax
+    # that's explicitly marked outbound.
+    value = fax.get("classificationLabel") or fax.get("direction")
+    return value != "outbound"
+
+
 def sync_once(client, writer, state, dry_run=False, mark_as_read=True):
-    result = client.list_inbound_faxes(status="new")
-    faxes = result.get("faxes") or result.get("data") or []
-    log.info("Found %d inbound fax(es)", len(faxes))
+    result = client.list_inbound_faxes()
+    all_faxes = result.get("rows") or result.get("faxes") or result.get("data") or []
+    faxes = [f for f in all_faxes if _is_inbound(f)]
+    log.info("Found %d inbound fax(es) (%d total returned)", len(faxes), len(all_faxes))
 
     for fax in faxes:
         fax_id = fax.get("messageId") or fax.get("id") or fax.get("faxId")
@@ -70,11 +80,20 @@ def sync_once(client, writer, state, dry_run=False, mark_as_read=True):
             filename = build_filename(fax)
             dest = writer.write(filename, content)
             log.info("Saved fax %s to %s", fax_id, dest)
-            if mark_as_read:
-                client.mark_fax_read(fax_id)
-            state.mark_processed(fax_id)
         except Exception:
             log.exception("Failed to process fax %s", fax_id)
+            continue
+
+        # Saved successfully -- record that now, so a re-run never re-saves
+        # this fax even if the still-unconfirmed mark-as-read call below
+        # fails. Documo's own read/unread flag for this endpoint is
+        # unconfirmed; treat marking it as best-effort, not required.
+        state.mark_processed(fax_id)
+        if mark_as_read:
+            try:
+                client.mark_fax_read(fax_id)
+            except Exception:
+                log.warning("Saved fax %s but could not mark it read in Documo", fax_id, exc_info=True)
 
 
 def main():

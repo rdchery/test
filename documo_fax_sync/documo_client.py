@@ -12,10 +12,13 @@ DOCUMO_API_KEY = os.environ.get("DOCUMO_API_KEY")
 DOCUMO_AUTH_HEADER = os.environ.get("DOCUMO_AUTH_HEADER", "Authorization")
 DOCUMO_AUTH_SCHEME = os.environ.get("DOCUMO_AUTH_SCHEME", "Basic")  # Documo's docs show "Authorization: Basic API_KEY"
 
-# Confirmed working: GET /v1/fax/{id}/download?format=pdf (from the docs).
-# Fax endpoints appear to live under /v1/fax regardless of DOCUMO_API_BASE,
-# so the /v1 prefix is baked into these paths rather than the base URL.
-LIST_PATH = os.environ.get("DOCUMO_LIST_PATH", "/v1/fax")
+# Confirmed working by live testing: GET /v1/fax/history (list, returns a
+# "rows" array) and GET /v1/fax/{id}/download?format=pdf. Fax endpoints
+# live under /v1/fax regardless of DOCUMO_API_BASE, so /v1 is baked into
+# these paths rather than the base URL. MARK_READ_PATH is still an
+# unconfirmed guess -- /v1/fax/history looks like an activity log with no
+# read/unread field, so mark_fax_read() is treated as best-effort in sync.py.
+LIST_PATH = os.environ.get("DOCUMO_LIST_PATH", "/v1/fax/history")
 DOWNLOAD_PATH = os.environ.get("DOCUMO_DOWNLOAD_PATH", "/v1/fax/{fax_id}/download")
 MARK_READ_PATH = os.environ.get("DOCUMO_MARK_READ_PATH", "/v1/fax/{fax_id}")
 
@@ -32,8 +35,13 @@ class DocumoClient:
         value = f"{DOCUMO_AUTH_SCHEME} {self.api_key}".strip()
         return {DOCUMO_AUTH_HEADER: value}
 
-    def list_inbound_faxes(self, status="new", page=1, limit=50):
-        params = {"direction": "inbound", "status": status, "page": page, "limit": limit}
+    def list_inbound_faxes(self, page=1, limit=50):
+        # /v1/fax/history doesn't have a confirmed direction/status filter --
+        # it returns fax activity generally (inbound and outbound mixed), so
+        # filtering to inbound-only happens client-side in sync.py, and
+        # "which ones are new" is tracked via the local state file rather
+        # than any server-side unread flag.
+        params = {"page": page, "limit": limit}
         resp = self.session.get(
             f"{self.base_url}{LIST_PATH}", headers=self._headers(), params=params, timeout=30
         )

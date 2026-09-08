@@ -8,34 +8,45 @@ in a local state file so re-runs never duplicate a file.
 See [`WINDOWS_SETUP.md`](WINDOWS_SETUP.md) instead of this file.** The rest
 of this README is the technical reference / Linux instructions.
 
-## ⚠️ Verify against the Documo docs
+## API endpoints -- confirmed vs. still-unverified
 
-This was built without direct access to the Documo docs page you linked
-(`docs.documo.com` was blocked by this environment's network egress proxy).
-Confirmed so far, from a real request against `api.documo.com` and from the
-Folders/Files section of the docs:
+This was built without direct access to Documo's docs during development
+(`docs.documo.com` was blocked by this environment's network egress proxy),
+so the endpoints below were pinned down through live testing against a real
+account rather than by reading the docs directly.
 
-- Base URL is `https://api.documo.com` (no `/v1` prefix)
-- Auth: `Authorization: Basic <api_key>` -- note the literal word `Basic`,
-  not `Bearer`, and not standard HTTP Basic auth (no base64, no colon/password)
+**Confirmed working, by an actual successful call:**
 
-Still unconfirmed -- `documo_client.py` currently guesses these by analogy
-with the rest of Documo's REST API and they have NOT been verified against
-the Fax section of the docs yet:
+- Base URL: `https://api.documo.com` (note: Documo is inconsistent about a
+  `/v1` prefix -- some endpoints have it, some don't; fax endpoints do, and
+  that's baked into the paths below rather than into the base URL)
+- Auth: `Authorization: Basic <api_key>` -- the literal word `Basic`, not
+  `Bearer`, and not standard HTTP Basic auth (no base64, no colon/password)
+- `GET /v1/fax/history` -- returns fax activity as `{"rows": [...]}`. No
+  confirmed server-side filter for inbound-only or unread-only, so
+  `sync.py` filters to inbound client-side (via `classificationLabel`) and
+  tracks "already saved" itself via the local state file rather than
+  trusting a read/unread flag from Documo.
+- `GET /v1/fax/{id}/download?format=pdf` -- downloads a fax's PDF
+- Fax record field names: `messageId`, `faxNumber`, `createdAt`,
+  `classificationLabel` (`"inbound"`/`"outbound"`)
 
-- `GET /fax?direction=inbound&status=new` -- list inbound faxes
-- `GET /fax/{id}/download` -- download a fax file
-- `PATCH /fax/{id}` -- mark a fax as read
-- The response field names (`id`/`faxId`, `from`, `receivedAt`, and the
-  list envelope key `faxes`/`data`)
+**Still an unverified guess:**
 
-Before relying on this, open the linked docs page's **Fax** section and
-confirm those paths and field names. Everything that might differ is a
-config value, not a code change:
+- `PATCH /v1/fax/{id}` to mark a fax as read (`DOCUMO_MARK_READ_PATH`).
+  `/v1/fax/history` looks like an activity log with no obvious read/unread
+  field, so this may not even be the right concept for this endpoint. To
+  stay safe, `sync.py` treats it as best-effort: a failure here is logged
+  as a warning but never blocks the fax from being saved or tracked as
+  processed (see `sync_once()` in `sync.py`).
+
+If you confirm or need to change any of this, everything above is a config
+value, not a code change:
 
 - Endpoint paths: `DOCUMO_LIST_PATH`, `DOCUMO_DOWNLOAD_PATH`, `DOCUMO_MARK_READ_PATH`
 - Auth shape: `DOCUMO_AUTH_HEADER`, `DOCUMO_AUTH_SCHEME`
-- Response field names: edit `build_filename()` and the `faxes = ...` line in `sync.py`
+- Response field names: edit `build_filename()`, `_is_inbound()`, and the
+  `all_faxes = ...` line in `sync.py`
 
 ## Setup
 
