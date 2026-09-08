@@ -35,10 +35,15 @@ def _safe(value):
 
 
 def build_filename(fax):
+    # Field names confirmed from Documo's "Fax Inbound" webhook payload
+    # (messageId / faxNumber / createdAt); id/from/receivedAt kept as
+    # fallbacks in case the list endpoint's shape differs slightly.
     return FILENAME_TEMPLATE.format(
-        fax_id=_safe(fax.get("id") or fax.get("faxId")),
-        from_number=_safe(fax.get("from") or fax.get("fromNumber")),
-        received_at=_safe(fax.get("receivedAt") or fax.get("createdAt") or "unknown-date"),
+        fax_id=_safe(fax.get("messageId") or fax.get("id") or fax.get("faxId")),
+        from_number=_safe(fax.get("faxNumber") or fax.get("from") or fax.get("fromNumber")),
+        received_at=_safe(
+            fax.get("createdAt") or fax.get("receivedAt") or "unknown-date"
+        ),
     )
 
 
@@ -48,7 +53,7 @@ def sync_once(client, writer, state, dry_run=False, mark_as_read=True):
     log.info("Found %d inbound fax(es)", len(faxes))
 
     for fax in faxes:
-        fax_id = fax.get("id") or fax.get("faxId")
+        fax_id = fax.get("messageId") or fax.get("id") or fax.get("faxId")
         if fax_id is None:
             log.warning("Skipping fax with no id: %r", fax)
             continue
