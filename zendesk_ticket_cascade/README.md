@@ -3,8 +3,9 @@
 Automates the one piece of the parent/child/related ticket structure that
 Zendesk's Linked Ticket app doesn't do on its own: when a parent (core
 project) ticket is marked **Solved**, this service finds its **Child of
-Project** tickets and solves them too, with an internal note explaining why.
-Tickets marked **Related Only** (or **Standalone**) are never touched.
+Ticket / Project** tickets and solves them too, with an internal note
+explaining why. Tickets marked **Related Issue / Ticket** (or
+**Standalone**) are never touched.
 
 ```
 Parent ticket -> Solved
@@ -17,7 +18,7 @@ Parent ticket -> Solved
         |
         v
 Search: custom_field_<parent> == parent id
-        AND custom_field_<relationship> == child_of_project
+        AND custom_field_<relationship> == child_of_ticket_/_project
         |
         v
 For each match not already solved/closed:
@@ -33,28 +34,31 @@ matches the child relationship value).
 ## Setup status
 
 - **Step 1 -- Install the Linked Ticket app.** Already done.
-- **Step 2 -- Custom fields.** Still to do in Admin Center (see below);
-  this service needs the two fields' numeric IDs once they exist.
+- **Step 2 -- Custom fields.**
+  - **Ticket Relationship** (dropdown) -- created, with these options/tags:
+    | Value | Tag |
+    |---|---|
+    | Child of Ticket / Project | `child_of_ticket_/_project` |
+    | Parent Ticket / Project | `parent_ticket_/_project` |
+    | Related Issue / Ticket | `related_issue_/_ticket` |
+    | Standalone | `standalone` |
+  - **Parent Ticket** (lookup field, ticket -> ticket) -- **not created yet**.
+    This is the field the cascade actually searches on to find a parent's
+    children, so the service can't run until it exists.
+  - Once both exist, grab each field's numeric ID (open it in Admin Center,
+    the ID is in the URL, e.g. `.../ticket_fields/360000123456` -- or call
+    `GET /api/v2/ticket_fields.json`) and put them in `.env` as
+    `ZENDESK_RELATIONSHIP_FIELD_ID` / `ZENDESK_PARENT_FIELD_ID`.
 - **Step 3 -- Cascading closure.** This service. Deploy it, then wire a
   Zendesk trigger + webhook to call it (see below).
 
-## Step 2: create the two custom ticket fields
+## Step 2 (remaining): create the Parent Ticket lookup field
 
-In **Admin Center -> Objects and rules -> Tickets -> Fields**:
-
-1. **Ticket Relationship** (dropdown), options/tags:
-   - `core_project`
-   - `child_of_project`
-   - `related_only`
-   - `standalone`
-2. **Parent Ticket** (lookup field, relationship: ticket -> ticket).
-
-After creating them, open each field and copy its numeric ID from the URL
-(or call `GET /api/v2/ticket_fields.json`) into `.env` as
-`ZENDESK_PARENT_FIELD_ID` / `ZENDESK_RELATIONSHIP_FIELD_ID`. If you name the
-dropdown option something other than `child_of_project`, set
-`ZENDESK_CHILD_RELATIONSHIP_VALUE` to match its stored value (the tag, not
-the display label).
+In **Admin Center -> Objects and rules -> Tickets -> Fields -> Add field**,
+create a **Lookup relationship** field named **Parent Ticket**, target
+object **Ticket**. On a child ticket, this field is set to point at its
+parent (e.g. #12000) -- that's what `find_child_tickets()` searches on,
+combined with Ticket Relationship being `child_of_ticket_/_project`.
 
 ## Step 3: deploy this service and wire the trigger
 
@@ -90,8 +94,8 @@ Then in Zendesk:
 2. **Admin Center -> Objects and rules -> Business rules -> Triggers ->
    Create trigger.**
    - Conditions: `Ticket: Status` changed to `Solved`, AND
-     `Ticket Relationship` is `Core Project` (so only a parent ticket's own
-     solve fires the cascade, not a child solving itself).
+     `Ticket Relationship` is `Parent Ticket / Project` (so only a parent
+     ticket's own solve fires the cascade, not a child solving itself).
    - Action: `Notify active webhook` -> the webhook created above.
 
 ## Tests

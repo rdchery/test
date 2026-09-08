@@ -21,7 +21,11 @@ ZENDESK_API_TOKEN = os.environ.get("ZENDESK_API_TOKEN")
 # Fields, or GET /api/v2/ticket_fields.json -- see README.md Step 2.
 PARENT_FIELD_ID = os.environ.get("ZENDESK_PARENT_FIELD_ID")
 RELATIONSHIP_FIELD_ID = os.environ.get("ZENDESK_RELATIONSHIP_FIELD_ID")
-CHILD_RELATIONSHIP_VALUE = os.environ.get("ZENDESK_CHILD_RELATIONSHIP_VALUE", "child_of_project")
+# Default matches the tag actually configured on the Ticket Relationship
+# field's "Child of Ticket / Project" option -- see README.md Step 2.
+CHILD_RELATIONSHIP_VALUE = os.environ.get(
+    "ZENDESK_CHILD_RELATIONSHIP_VALUE", "child_of_ticket_/_project"
+)
 
 
 class ZendeskClient:
@@ -52,9 +56,11 @@ class ZendeskClient:
         if not parent_field_id:
             raise ValueError("ZENDESK_PARENT_FIELD_ID is not set")
 
-        query = f"type:ticket custom_field_{parent_field_id}:{parent_ticket_id}"
+        # Values are quoted so punctuation in a tag (e.g. the "/" in
+        # "child_of_ticket_/_project") can't be misread as query syntax.
+        query = f'type:ticket custom_field_{parent_field_id}:"{parent_ticket_id}"'
         if relationship_field_id:
-            query += f" custom_field_{relationship_field_id}:{child_value}"
+            query += f' custom_field_{relationship_field_id}:"{child_value}"'
 
         results = []
         url = f"{self.base_url}/search.json"

@@ -16,14 +16,17 @@ def test_find_child_tickets_builds_query_with_both_fields():
     client.session.get.return_value.json.return_value = {"results": [{"id": 1}], "next_page": None}
 
     results = client.find_child_tickets(
-        parent_ticket_id=12000, parent_field_id="111", relationship_field_id="222", child_value="child_of_project"
+        parent_ticket_id=12000,
+        parent_field_id="111",
+        relationship_field_id="222",
+        child_value="child_of_ticket_/_project",
     )
 
     assert results == [{"id": 1}]
     called_url, kwargs = client.session.get.call_args
     assert called_url[0] == "https://acme.zendesk.com/api/v2/search.json"
     assert kwargs["params"]["query"] == (
-        "type:ticket custom_field_111:12000 custom_field_222:child_of_project"
+        'type:ticket custom_field_111:"12000" custom_field_222:"child_of_ticket_/_project"'
     )
     assert kwargs["auth"] == ("agent@acme.com/token", "tok")
 
