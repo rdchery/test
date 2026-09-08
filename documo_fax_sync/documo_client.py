@@ -12,9 +12,12 @@ DOCUMO_API_KEY = os.environ.get("DOCUMO_API_KEY")
 DOCUMO_AUTH_HEADER = os.environ.get("DOCUMO_AUTH_HEADER", "Authorization")
 DOCUMO_AUTH_SCHEME = os.environ.get("DOCUMO_AUTH_SCHEME", "Basic")  # Documo's docs show "Authorization: Basic API_KEY"
 
-LIST_PATH = os.environ.get("DOCUMO_LIST_PATH", "/fax")
-DOWNLOAD_PATH = os.environ.get("DOCUMO_DOWNLOAD_PATH", "/fax/{fax_id}/download")
-MARK_READ_PATH = os.environ.get("DOCUMO_MARK_READ_PATH", "/fax/{fax_id}")
+# Confirmed working: GET /v1/fax/{id}/download?format=pdf (from the docs).
+# Fax endpoints appear to live under /v1/fax regardless of DOCUMO_API_BASE,
+# so the /v1 prefix is baked into these paths rather than the base URL.
+LIST_PATH = os.environ.get("DOCUMO_LIST_PATH", "/v1/fax")
+DOWNLOAD_PATH = os.environ.get("DOCUMO_DOWNLOAD_PATH", "/v1/fax/{fax_id}/download")
+MARK_READ_PATH = os.environ.get("DOCUMO_MARK_READ_PATH", "/v1/fax/{fax_id}")
 
 
 class DocumoClient:
@@ -39,7 +42,12 @@ class DocumoClient:
 
     def download_fax(self, fax_id):
         path = DOWNLOAD_PATH.format(fax_id=fax_id)
-        resp = self.session.get(f"{self.base_url}{path}", headers=self._headers(), timeout=60)
+        resp = self.session.get(
+            f"{self.base_url}{path}",
+            headers=self._headers(),
+            params={"format": "pdf"},
+            timeout=60,
+        )
         resp.raise_for_status()
         return resp.content
 
