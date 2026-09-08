@@ -1,8 +1,10 @@
 # Setting this up on your Windows Server
 
 No code-writing needed. You'll install one free program, copy a folder onto
-the server, edit one settings file, test it once, then tell Windows to run
-it automatically forever. Steps 1-7 below, in order.
+the server, edit one settings file, test it safely in stages (nothing
+touches your real fax inbox or share folder until you're confident it
+works), then tell Windows to run it automatically forever. Steps 1-8
+below, in order.
 
 ---
 
@@ -21,7 +23,9 @@ Find the real path once, right now, so you can use it instead:
    path. Write it down (with whatever subfolder you want faxes saved into,
    e.g. `\\FILESERVER01\Faxes\Incoming`).
 
-You'll paste that into the settings file in Step 4, instead of `Z:\...`.
+You'll paste that into the settings file in Step 6, instead of `Z:\...`
+(Steps 4-5 use a throwaway test folder first, deliberately, before this
+real path comes into play at all).
 
 ---
 
@@ -67,47 +71,89 @@ That last command downloads the small pieces of code this program depends
 on. It'll print a bunch of text and finish with something like
 `Successfully installed ...`. That's normal, not an error.
 
-## 4. Fill in your settings (the only "editing" step)
+## 4. Fill in your settings -- starting with SAFE, throwaway settings
 
 1. In File Explorer, go to `C:\Apps\documo_fax_sync`.
 2. Find the file `.env.example`. Copy it, and rename the copy to `.env`
    (just `.env`, nothing before the dot).
 3. Right-click `.env` -> **Open with** -> **Notepad**.
-4. Find these two lines and fill them in:
+4. Find these lines and fill them in like this **for now** -- deliberately
+   pointing at a harmless local folder, not your real share, and telling it
+   not to change anything in Documo:
    ```
    DOCUMO_API_KEY=your_documo_api_key
    SHARE_DIR=/mnt/fax-share/incoming
+   MARK_AS_READ=true
    ```
-   Change them to:
+   Change to:
    ```
    DOCUMO_API_KEY=<paste your real Documo key here>
-   SHARE_DIR=\\FILESERVER01\Faxes\Incoming
+   SHARE_DIR=C:\Users\<your username>\Desktop\fax_test
+   MARK_AS_READ=false
    ```
-   (using the real network path you found in "Before you start" above).
+   `SHARE_DIR` here is just a test folder on your own machine -- it'll be
+   created automatically the first time you run it, nothing needs to exist
+   there yet. `MARK_AS_READ=false` means it downloads and saves a copy but
+   leaves the fax marked "unread" in Documo, so nobody's real workflow is
+   affected while you're testing.
 5. Save the file (Ctrl+S), close Notepad.
 
 Don't touch any other file. Everything else is already set up.
 
-## 5. Test it once by hand
+## 5. Test it safely, in two stages
 
-Still in that same Administrator Command Prompt:
+**Stage A -- prove the API key works, with zero side effects.** This
+doesn't download, save, or change anything -- it only asks Documo "what's
+there?" and prints the answer. Run:
 
 ```
 cd C:\Apps\documo_fax_sync
+.venv\Scripts\python sync.py --dry-run
+```
+
+Look for a line like `Found N inbound fax(es)` and, for each one,
+`[DRY RUN] Would save fax ...`. A connection or key problem shows up here
+as a clear error instead. If this doesn't come back clean, stop and see
+**Troubleshooting** below -- don't move on yet.
+
+**Stage B -- prove it can actually save a file**, still only to the
+throwaway test folder from Step 4, still without touching Documo's read
+status:
+
+```
 .venv\Scripts\python sync.py
 ```
 
-What you're looking for:
-- A line saying `Found N inbound fax(es)`.
-- If you have a real unread fax waiting in Documo, a line saying
-  `Saved fax ... to \\FILESERVER01\Faxes\Incoming\...pdf` -- and a new PDF
-  actually sitting in that folder.
-- No red error text.
+If you have a real unread fax waiting, look for
+`Saved fax ... to C:\Users\...\Desktop\fax_test\...pdf` -- then go check
+that folder in File Explorer and confirm the PDF is actually there and
+opens correctly. If nothing's currently unread in Documo, send yourself a
+test fax first so there's something for it to find.
 
-If something goes wrong, see **Troubleshooting** at the bottom before
-moving on to scheduling it.
+Repeat Stage B as many times as you like -- since `MARK_AS_READ=false`,
+the same fax will keep showing up as "new" and get re-saved each run,
+which is fine for testing (it won't create duplicates in the test folder
+either, since it overwrites the same filename).
 
-## 6. Make it run automatically (Task Scheduler)
+Only once both stages look right, move on to Step 6.
+
+## 6. Switch to your real settings
+
+Open `.env` in Notepad again and change the two lines you set for testing:
+
+```
+SHARE_DIR=\\FILESERVER01\Faxes\Incoming
+MARK_AS_READ=true
+```
+
+(using the real network path you found in "Before you start" up top, not
+`Z:\...`). Save and close.
+
+Optionally run `.venv\Scripts\python sync.py` by hand one more time to
+confirm a fax now lands in the *real* share folder and gets marked read in
+Documo, before handing it off to Task Scheduler.
+
+## 7. Make it run automatically (Task Scheduler)
 
 1. Open **Task Scheduler** (Start menu -> search "Task Scheduler").
 2. On the right, click **Create Task...** (not "Create Basic Task" -- the
@@ -136,7 +182,7 @@ moving on to scheduling it.
    matters: this account needs permission to reach that share, same as
    your regular login does.
 
-## 7. Confirm it's actually running on schedule
+## 8. Confirm it's actually running on schedule
 
 - In Task Scheduler, find "Documo Fax Sync" in the list, right-click it ->
   **Run**, to fire it immediately once.

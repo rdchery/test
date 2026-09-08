@@ -39,6 +39,42 @@ def test_sync_once_downloads_saves_marks_read_and_skips_processed(tmp_path):
     assert state.is_processed("1")
 
 
+def test_sync_once_dry_run_touches_nothing(tmp_path):
+    client = MagicMock()
+    client.list_inbound_faxes.return_value = {
+        "faxes": [{"id": "1", "from": "5551234567", "receivedAt": "2026-09-03T10:00:00Z"}]
+    }
+
+    writer = MagicMock()
+    state = ProcessedFaxState(tmp_path / "processed.json")
+
+    sync_once(client, writer, state, dry_run=True)
+
+    client.download_fax.assert_not_called()
+    writer.write.assert_not_called()
+    client.mark_fax_read.assert_not_called()
+    assert not state.is_processed("1")
+
+
+def test_sync_once_mark_as_read_false_still_saves_but_skips_marking(tmp_path):
+    client = MagicMock()
+    client.list_inbound_faxes.return_value = {
+        "faxes": [{"id": "1", "from": "5551234567", "receivedAt": "2026-09-03T10:00:00Z"}]
+    }
+    client.download_fax.return_value = b"%PDF-1.4 fake"
+
+    writer = MagicMock()
+    writer.write.side_effect = lambda name, content: tmp_path / name
+
+    state = ProcessedFaxState(tmp_path / "processed.json")
+
+    sync_once(client, writer, state, mark_as_read=False)
+
+    writer.write.assert_called_once()
+    client.mark_fax_read.assert_not_called()
+    assert state.is_processed("1")
+
+
 def test_sync_once_continues_after_a_failed_fax(tmp_path):
     client = MagicMock()
     client.list_inbound_faxes.return_value = {

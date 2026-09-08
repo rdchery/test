@@ -42,7 +42,7 @@ def build_filename(fax):
     )
 
 
-def sync_once(client, writer, state):
+def sync_once(client, writer, state, dry_run=False, mark_as_read=True):
     result = client.list_inbound_faxes(status="new")
     faxes = result.get("faxes") or result.get("data") or []
     log.info("Found %d inbound fax(es)", len(faxes))
@@ -55,12 +55,18 @@ def sync_once(client, writer, state):
         if state.is_processed(fax_id):
             continue
 
+        if dry_run:
+            log.info("[DRY RUN] Would save fax %s as %s (nothing written, nothing marked read)",
+                      fax_id, build_filename(fax))
+            continue
+
         try:
             content = client.download_fax(fax_id)
             filename = build_filename(fax)
             dest = writer.write(filename, content)
             log.info("Saved fax %s to %s", fax_id, dest)
-            client.mark_fax_read(fax_id)
+            if mark_as_read:
+                client.mark_fax_read(fax_id)
             state.mark_processed(fax_id)
         except Exception:
             log.exception("Failed to process fax %s", fax_id)
@@ -76,19 +82,28 @@ def main():
         default=0,
         help="Seconds between polls. 0 = run once and exit (default; suitable for cron).",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Connect to Documo and list new faxes only. Downloads nothing, writes nothing, "
+        "marks nothing as read. Doesn't even need SHARE_DIR/SMB settings. Safe first test "
+        "of the API key.",
+    )
     args = parser.parse_args()
 
+    mark_as_read = os.environ.get("MARK_AS_READ", "true").strip().lower() not in ("false", "0", "no")
+
     client = DocumoClient()
-    writer = build_share_writer_from_env()
+    writer = None if args.dry_run else build_share_writer_from_env()
     state = ProcessedFaxState(STATE_FILE)
 
     if args.interval <= 0:
-        sync_once(client, writer, state)
+        sync_once(client, writer, state, dry_run=args.dry_run, mark_as_read=mark_as_read)
         return
 
     log.info("Starting poll loop every %ss", args.interval)
     while True:
-        sync_once(client, writer, state)
+        sync_once(client, writer, state, dry_run=args.dry_run, mark_as_read=mark_as_read)
         time.sleep(args.interval)
 
 
